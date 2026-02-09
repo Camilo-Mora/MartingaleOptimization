@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Martingale Optimizer Pro - Multi-Analysis</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <!-- Libraries -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0b0e14;
+            --panel-bg: rgba(23, 27, 34, 0.8);
+            --accent-color: #00f2ff;
+            --success-color: #00ff88;
+            --danger-color: #ff3e3e;
+            --warning-color: #ffcc00;
+            --text-color: #e6edf3;
+            --text-muted: #848d97;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --glass-blur: blur(12px);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        aside {
+            width: 320px;
+            background: var(--panel-bg);
+            backdrop-filter: var(--glass-blur);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            z-index: 100;
+            flex-shrink: 0;
+            overflow-y: auto;
+        }
+
+        .logo-container {
+            margin-bottom: 24px;
+        }
+
+        .logo-container h1 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title {
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: var(--accent-color);
+            margin: 10px 0 15px 0;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(0, 242, 255, 0.2);
+            padding-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .control-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        label span {
+            color: var(--text-color);
+        }
+
+        select,
+        input[type="range"] {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-color);
+            outline: none;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        select {
+            padding: 8px 10px;
+            font-size: 0.85rem;
+        }
+
+        select:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        input[type="range"] {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            margin: 10px 0;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            cursor: pointer;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 16px;
+            background: rgba(0, 242, 255, 0.05);
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 242, 255, 0.1);
+        }
+
+        .checkbox-group input {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .checkbox-group label {
+            margin-bottom: 0;
+            cursor: pointer;
+            text-transform: none;
+            font-size: 0.8rem;
+            color: var(--accent-color);
+            font-weight: 700;
+        }
+
+        .upload-zone {
+            border: 1px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+
+        .upload-zone p {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        /* Info Button & Modal */
+        .info-btn {
+            background: var(--accent-color);
+            color: #000;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 900;
+            cursor: help;
+            margin-left: 5px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal-content {
+            background-color: var(--panel-bg);
+            margin: 15% auto;
+            padding: 30px;
+            border: 1px solid var(--accent-color);
+            width: 500px;
+            border-radius: 16px;
+            box-shadow: 0 0 50px rgba(0, 242, 255, 0.2);
+            position: relative;
+        }
+
+        .modal-content h2 {
+            color: var(--accent-color);
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        .modal-content p {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            color: var(--text-color);
+        }
+
+        .modal-content ul {
+            padding-left: 20px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .modal-content li {
+            margin-bottom: 8px;
+        }
+
+        .modal-content .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+        }
+
+        /* Main Content area should scroll naturally now */
+        main {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: block;
+            /* Force block flow for stacking */
+            background-color: var(--bg-color);
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            min-height: 0;
+            width: 100%;
+        }
+
+        .chart-wrapper {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            min-height: 300px;
+        }
+
+        .chart-header {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            padding: 0 10px 5px 10px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .chart-container {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+        }
+
+        .toggle-container {
+            display: flex;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 6px;
+            padding: 3px;
+            gap: 3px;
+        }
+
+        .toggle-btn {
+            flex: 1;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            padding: 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .toggle-btn.active {
+            background: var(--accent-color);
+            color: #000;
+        }
+
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: auto;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .mini-stat {
+            text-align: center;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            padding: 8px;
+        }
+
+        .mini-stat .label {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .mini-stat .value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--success-color);
+        }
+
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-color);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .be-recommendation {
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-top: 5px;
+            display: none;
+        }
+
+        .be-recommendation.active {
+            display: block;
+        }
+
+        .be-early {
+            background: rgba(0, 255, 136, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .be-late {
+            background: rgba(255, 62, 62, 0.1);
+            color: var(--danger-color);
+            border: 1px solid rgba(255, 62, 62, 0.2);
+        }
+
+        .be-neutral {
+            background: rgba(255, 204, 0, 0.1);
+            color: var(--warning-color);
+            border: 1px solid rgba(255, 204, 0, 0.2);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+
+        .checkbox-group:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(0, 255, 136, 0.2);
+        }
+
+        .checkbox-group input {
+            cursor: pointer;
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Portfolio Output Section */
+        .portfolio-output-section {
+            background: var(--panel-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .portfolio-output-section h2 {
+            font-size: 0.9rem;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(0, 242, 255, 0.1);
+            padding-bottom: 10px;
+            margin-bottom: 5px;
+        }
+
+        .config-list-container {
+            overflow-x: auto;
+        }
+
+        .config-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+            color: var(--text-color);
+        }
+
+        .config-table th {
+            text-align: left;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 0.65rem;
+            letter-spacing: 0.5px;
+        }
+
+        .config-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .config-table tr:hover {
+            background: rgba(0, 242, 255, 0.03);
+        }
+
+        .mql5-code-block {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--success-color);
+            white-space: pre-wrap;
+            position: relative;
+        }
+
+        /* Portfolio Result Section (Natural Stacking) */
+        .bottom-panel {
+            background: var(--panel-bg);
+            backdrop-filter: var(--glass-blur);
+            border-top: 2px solid var(--accent-color);
+            padding: 24px;
+            margin-top: 40px;
+            /* Strong separation from button */
+            border-radius: 12px;
+            width: 100%;
+            display: block;
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .bottom-panel.hidden {
+            display: none !important;
+        }
+
+        .bottom-panel h2 {
+            font-size: 0.9rem;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+        }
+
+        .portfolio-toggle-wrapper {
+            display: flex;
+            justify-content: center;
+            padding: 15px 0;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid var(--border-color);
+            margin-top: 10px;
+        }
+
+        .toggle-results-btn {
+            background: rgba(0, 242, 255, 0.1);
+            color: var(--accent-color);
+            border: 2px solid var(--accent-color);
+            border-radius: 20px;
+            padding: 8px 32px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 0 10px rgba(0, 242, 255, 0.1);
+        }
+
+        .toggle-results-btn:hover {
+            background: var(--accent-color);
+            color: #000;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
+        }
+
+        /* Portfolio Output Section */
+        .portfolio-output-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+        }
+
+        .mql5-code-block {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--success-color);
+            white-space: pre;
+            overflow-x: auto;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p style="margin-top: 12px; font-size: 0.8rem; color: var(--text-muted);">Loading Analytics...</p>
+    </div>
+
+    <!-- Efficiency Modal -->
+    <div id="infoModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="toggleModal()">&times;</span>
+            <h2>Efficiency & Persistence Rules</h2>
+            <p>This metric measures how much <b>Profit</b> you get for every <b>1% of Drawdown</b> taken. The
+                <b>Preferred BE Exit</b> is calculated using a <b>Survival Guardrail</b>:
+            </p>
+            <ul>
+                <li><b>Safety First:</b> We compare the account survival rate of every BE setting against the safest
+                    baseline (BE=2).</li>
+                <li><b>5% Rule:</b> A deeper exit is only recommended if it keeps the survival rate within <b>5%</b> of
+                    the safest setting. If a pair trends too much (like JPY or Gold), a quick exit is forced.</li>
+                <li><b>Global Cap:</b> Recommendations are capped at <b>BE=4</b> to avoid over-exposure in extreme
+                    tail-end events.</li>
+            </ul>
+        </div>
+    </div>
+
+    <aside>
+        <div class="logo-container">
+            <h1><span>📊</span> Optimizer Pro</h1>
+        </div>
+
+        <div class="section-title">Dimensions</div>
+
+        <div class="control-group">
+            <label>Currency Pair</label>
+            <select id="pair-select"></select>
+        </div>
+
+        <div class="control-group">
+            <label>X-Axis Dimension</label>
+            <div
+                style="background: rgba(0, 242, 255, 0.05); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(0, 242, 255, 0.1); font-size: 0.75rem; color: var(--accent-color); font-weight: 700;">
+                ReEntrYExtension
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>Y-Axis Sweep</label>
+            <div class="toggle-container">
+                <button id="btn-pt" class="toggle-btn active" onclick="setYAxis('PTAsTimeREExt')">PTtimes</button>
+                <button id="btn-be" class="toggle-btn" onclick="setYAxis('CloseBreakEvenAfter')">BE</button>
+            </div>
+        </div>
+
+        <div class="control-group" id="slice-control-pt" style="display:none;">
+            <label>Fixed PT Limit</label>
+            <select id="pt-select"></select>
+        </div>
+
+        <div class="control-group" id="slice-control-be">
+            <label>Fixed BE Count</label>
+            <select id="be-select"></select>
+            <div class="checkbox-group" id="auto-be-container" style="margin-top: 8px; margin-bottom: 0; padding: 8px;">
+                <input type="checkbox" id="auto-be-toggle" onchange="toggleAutoBE()">
+                <label for="auto-be-toggle" id="auto-be-label"
+                    style="text-transform: none; font-size: 0.75rem; display: flex; align-items: center; gap: 4px; color: var(--accent-color);">
+                    Use preferred BE exit = - <span class="info-btn" onclick="toggleModal()"
+                        style="margin-left: 2px;">?</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="section-title">Candidate Filters</div>
+
+        <div class="control-group">
+            <label>Max PercentDD <span id="val-dd">30%</span></label>
+            <input type="range" id="filter-dd" min="5" max="100" step="5" value="30">
+        </div>
+
+        <div class="control-group">
+            <label>Max Duration <span id="val-duration">15d</span></label>
+            <input type="range" id="filter-duration" min="5" max="120" step="5" value="15">
+        </div>
+
+        <div class="control-group">
+            <label>Max Re-Entries <span id="val-reentries">10</span></label>
+            <input type="range" id="filter-reentries" min="1" max="20" step="1" value="10">
+        </div>
+
+        <div class="control-group">
+            <label>Neighbor Radius <span id="val-radius">1</span></label>
+            <input type="range" id="filter-radius" min="0" max="2" step="1" value="1">
+            <p style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">Surrounding stability (+10%
+                buffer)</p>
+        </div>
+
+        <div class="section-title">Portfolio Selection Criteria</div>
+
+        <div class="control-group">
+            <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 5px;">
+                <label class="checkbox-group" style="margin-bottom:0; padding: 4px 10px; cursor: pointer;">
+                    <input type="checkbox" class="port-crit" value="efficiency" checked>
+                    <span style="font-size:0.72rem; text-transform:none; color:var(--text-color);">Max Efficiency
+                        (Profit/DD)</span>
+                </label>
+                <label class="checkbox-group" style="margin-bottom:0; padding: 4px 10px; cursor: pointer;">
+                    <input type="checkbox" class="port-crit" value="dd">
+                    <span style="font-size:0.72rem; text-transform:none; color:var(--text-color);">Min Drawdown
+                        (PORT_DD)</span>
+                </label>
+                <label class="checkbox-group" style="margin-bottom:0; padding: 4px 10px; cursor: pointer;">
+                    <input type="checkbox" class="port-crit" value="reentries">
+                    <span style="font-size:0.72rem; text-transform:none; color:var(--text-color);">Min Re-entries
+                        (PORT_RE)</span>
+                </label>
+                <label class="checkbox-group" style="margin-bottom:0; padding: 4px 10px; cursor: pointer;">
+                    <input type="checkbox" class="port-crit" value="composite">
+                    <span style="font-size:0.72rem; text-transform:none; color:var(--text-color);">Best Stability
+                        (PORT_COST)</span>
+                </label>
+                <label class="checkbox-group" style="margin-bottom:0; padding: 4px 10px; cursor: pointer;">
+                    <input type="checkbox" class="port-crit" value="duration">
+                    <span style="font-size:0.72rem; text-transform:none; color:var(--text-color);">Min Duration
+                        (PORT_DUR)</span>
+                </label>
+                <label class="checkbox-group" style="margin-bottom:0; padding: 4px 10px; cursor: pointer;">
+                    <input type="checkbox" class="port-crit" value="ext_max">
+                    <span style="font-size:0.72rem; text-transform:none; color:var(--text-color);">Max RE Extension
+                        (PORT_EXT)</span>
+                </label>
+                <label class="checkbox-group" style="margin-bottom:0; padding: 4px 10px; cursor: pointer;">
+                    <input type="checkbox" class="port-crit" value="ext_min">
+                    <span style="font-size:0.72rem; text-transform:none; color:var(--text-color);">Min RE Extension
+                        (PORT_MIN_EXT)</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="stats-summary">
+            <div class="mini-stat">
+                <div class="label">Total</div>
+                <div id="stat-total" class="value">0</div>
+            </div>
+            <div class="mini-stat">
+                <div class="label">Safe</div>
+                <div id="stat-safe" class="value" style="color:var(--accent-color)">0</div>
+            </div>
+            <div class="mini-stat">
+                <div class="label">Max Pft</div>
+                <div id="stat-profit" class="value">0</div>
+            </div>
+        </div>
+
+    </aside>
+
+    <main>
+        <div class="charts-grid">
+            <div class="chart-wrapper">
+                <div class="chart-header"><span>1. NET PROFIT ($)</span> <span id="eff-tag-profit"
+                        style="font-size:0.6rem; color:var(--accent-color)"></span></div>
+                <div id="chart-profit" class="chart-container"></div>
+            </div>
+            <div class="chart-wrapper">
+                <div class="chart-header"><span>2. MAX DRAWDOWN (%)</span></div>
+                <div id="chart-dd" class="chart-container"></div>
+            </div>
+            <div class="chart-wrapper">
+                <div class="chart-header"><span>3. MAX DURATION (DAYS)</span></div>
+                <div id="chart-duration" class="chart-container"></div>
+            </div>
+            <div class="chart-wrapper">
+                <div class="chart-header"><span>4. MAX RE-ENTRIES</span></div>
+                <div id="chart-reentries" class="chart-container"></div>
+            </div>
+        </div>
+
+        <div class="portfolio-toggle-wrapper">
+            <button class="toggle-results-btn" onclick="togglePortfolioVisibility()" id="toggle-btn-ui">
+                <span id="toggle-icon">👁️</span> <span id="toggle-text">Preview Portfolio Code</span>
+            </button>
+        </div>
+
+        <div class="bottom-panel hidden" id="portfolio-gen-section">
+            <div class="portfolio-output-section">
+                <div class="portfolio-header"
+                    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                    <h2>Portfolio Array Definitions (#define)</h2>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="copyToClipboard('mql5-defines')"
+                            style="background: var(--accent-color); color: #000; border: none; border-radius: 4px; padding: 6px 16px; font-size: 0.7rem; cursor: pointer; font-weight: 800;">COPY
+                            CODE</button>
+                        <button onclick="togglePortfolioVisibility()"
+                            style="background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border-color); border-radius: 4px; padding: 6px 12px; font-size: 0.7rem; cursor: pointer;">CLOSE</button>
+                    </div>
+                </div>
+
+                <div class="mql5-code-block" id="mql5-defines">
+                    <!-- MQL5 defines will be injected here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+
+    <script>
+        let fullData = [];
+        let currentPair = '';
+        let currentYAxis = 'PTAsTimeREExt';
+        let beEfficiencyMap = {}; // Will hold pre-calculated recs
+        let lastManualBE = 2; // Track user choice
+        const config = { responsive: true, displayModeBar: false };
+
+        window.addEventListener('load', () => {
+            // Using relative path for full portability
+            fetch('ZMarti_ReEntry_PT_BE_Optimizations.csv')
+                .then(r => {
+                    if (r.ok) return r.text();
+                    throw new Error("Local file not found or browser blocked access");
+                })
+                .then(text => {
+                    if (text) parseCSV(text);
+                })
+                .catch(err => {
+                    console.error("Auto-load failed:", err);
+                    // Hide loading so the UI isn't stuck if fetch is blocked locally
+                    hideLoading();
+                });
+        });
+
+        function scrollToPortfolio() {
+            const section = document.getElementById('portfolio-gen-section');
+            if (section) section.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function copyToClipboard(id) {
+            const text = document.getElementById(id).innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = event ? event.target : document.activeElement;
+                if (btn && btn.tagName === 'BUTTON') {
+                    const original = btn.innerText;
+                    btn.innerText = 'Copied!';
+                    setTimeout(() => btn.innerText = original, 2000);
+                }
+            }).catch(err => console.error('Copy failed:', err));
+        }
+
+        function toggleModal() {
+            const m = document.getElementById('infoModal');
+            m.style.display = m.style.display === 'block' ? 'none' : 'block';
+        }
+
+
+
+        function togglePortfolioVisibility() {
+            const section = document.getElementById('portfolio-gen-section');
+            const btn = document.getElementById('toggle-btn-ui');
+            const text = document.getElementById('toggle-text');
+            const icon = document.getElementById('toggle-icon');
+
+            const isHidden = section.classList.toggle('hidden');
+
+            if (isHidden) {
+                text.innerText = 'Preview Portfolio Code';
+                icon.innerText = '👁️';
+                btn.style.background = 'rgba(0, 242, 255, 0.1)';
+                btn.style.borderColor = 'var(--accent-color)';
+                btn.style.color = 'var(--accent-color)';
+            } else {
+                text.innerText = 'Close Preview';
+                icon.innerText = '✖️';
+                btn.style.background = 'rgba(255, 62, 62, 0.1)';
+                btn.style.borderColor = 'var(--danger-color)';
+                btn.style.color = 'var(--danger-color)';
+
+                // Allow DOM update before scrolling
+                setTimeout(() => {
+                    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 50);
+            }
+        }
+
+        function hideLoading() {
+            document.getElementById('loading-overlay').style.opacity = '0';
+            setTimeout(() => document.getElementById('loading-overlay').style.display = 'none', 500);
+        }
+
+        function decodeResult(val) {
+            const packed = parseInt(val);
+            const C = packed % 100;
+            const B = Math.floor((packed / 100) % 10000);
+            const A = Math.floor(packed / 1000000);
+            return { Duration: A / 10.0, DrawdownVal: B / 10.0, ReEntries: C };
+        }
+
+        function parseCSV(input) {
+            Papa.parse(input, {
+                header: true, dynamicTyping: true, skipEmptyLines: true,
+                complete: function (r) {
+                    fullData = r.data.map(row => ({ ...row, ...decodeResult(row.Result) }));
+                    calculateGlobalEfficiency();
+                    initSelectors();
+                    hideLoading();
+                }
+            });
+        }
+
+        // Pre-calculate BE recommendations based on Survival First, then Profit/DD Efficiency
+        function calculateGlobalEfficiency() {
+            const pairs = [...new Set(fullData.map(d => d.Pair))];
+            pairs.forEach(p => {
+                const pairData = fullData.filter(d => d.Pair === p);
+                if (!pairData.length) return;
+
+                const beGroups = {};
+                pairData.forEach(d => {
+                    const be = d.CloseBreakEvenAfter;
+                    if (!beGroups[be]) beGroups[be] = { p: 0, dd: 0, total: 0, safe: 0 };
+                    beGroups[be].total++;
+                    if (d.PercentDD < 100) {
+                        beGroups[be].p += d.Profit;
+                        beGroups[be].dd += d.PercentDD;
+                        beGroups[be].safe++;
+                    }
+                });
+
+                // Baseline survival (usually BE=2)
+                const baselineSurvival = beGroups[2] ? (beGroups[2].safe / beGroups[2].total) : 1;
+
+                let bestBE = 2;
+                let maxEff = -1;
+                let trend = 'Neutral';
+
+                Object.keys(beGroups).forEach(beStr => {
+                    const be = parseInt(beStr);
+                    const g = beGroups[be];
+                    const survival = g.safe / g.total;
+
+                    // SAFETY RULE: Survival must be within 5% of the baseline to be considered
+                    // GLOBAL CAP: Never recommend higher than BE=4
+                    if (survival >= (baselineSurvival - 0.05) && be <= 4) {
+                        const eff = g.safe > 0 ? (g.p / g.safe) / (g.dd / g.safe) : 0;
+                        if (eff > maxEff) {
+                            maxEff = eff;
+                            bestBE = be;
+                        }
+                    }
+                });
+
+                // Determine trend for UI coloring based on the winner
+                const eff2 = beGroups[2] && beGroups[2].safe > 0 ? (beGroups[2].p / beGroups[2].safe) / (beGroups[2].dd / beGroups[2].safe) : 0;
+                if (bestBE > 3) trend = 'Late';
+                else if (bestBE <= 2) trend = 'Early';
+                else trend = 'Neutral';
+
+                beEfficiencyMap[p] = { bestBE, trend, maxEff };
+            });
+        }
+
+        function toggleAutoBE() {
+            const isAuto = document.getElementById('auto-be-toggle').checked;
+            const beSelect = document.getElementById('be-select');
+
+            if (isAuto && beEfficiencyMap[currentPair]) {
+                const rec = beEfficiencyMap[currentPair];
+                beSelect.value = rec.bestBE;
+                beSelect.disabled = true;
+            } else {
+                beSelect.disabled = false;
+            }
+            updateAll();
+        }
+
+        function initSelectors() {
+            const pairs = [...new Set(fullData.map(d => d.Pair))].sort();
+            document.getElementById('pair-select').innerHTML = pairs.map(p => `<option value="${p}">${p}</option>`).join('');
+            currentPair = pairs[0];
+
+            const pts = [...new Set(fullData.map(d => d.PTAsTimeREExt))].sort((a, b) => a - b);
+            document.getElementById('pt-select').innerHTML = pts.map(v => `<option value="${v}">${v}</option>`).join('');
+
+            const bes = [...new Set(fullData.map(d => d.CloseBreakEvenAfter))].sort((a, b) => a - b);
+            document.getElementById('be-select').innerHTML = bes.map(v => `<option value="${v}">${v}</option>`).join('');
+
+            // Filter listeners
+            ['pair-select', 'pt-select', 'be-select', 'filter-dd', 'filter-duration', 'filter-reentries', 'filter-radius'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+
+                el.addEventListener('change', () => {
+                    if (id === 'pair-select') {
+                        currentPair = el.value;
+                        if (document.getElementById('auto-be-toggle').checked) toggleAutoBE();
+                    }
+                    if (id === 'be-select' && !document.getElementById('auto-be-toggle').checked) {
+                        lastManualBE = el.value;
+                    }
+                    updateAll();
+                });
+                el.addEventListener('input', () => {
+                    if (id.startsWith('filter')) {
+                        const val = el.value;
+                        const suffix = id.includes('dd') ? '%' : (id.includes('duration') ? 'd' : '');
+                        const displayEl = document.getElementById('val-' + id.split('-')[1]);
+                        if (displayEl) displayEl.innerText = val + suffix;
+                        updateAll();
+                    }
+                });
+            });
+
+            // Portfolio checkboxes
+            document.querySelectorAll('.port-crit').forEach(cb => {
+                cb.addEventListener('change', updateAll);
+            });
+
+            updateAll();
+        }
+
+        function setYAxis(val) {
+            currentYAxis = val;
+            document.getElementById('btn-pt').classList.toggle('active', val === 'PTAsTimeREExt');
+            document.getElementById('btn-be').classList.toggle('active', val === 'CloseBreakEvenAfter');
+            document.getElementById('slice-control-pt').style.display = (val === 'PTAsTimeREExt' ? 'none' : 'block');
+            document.getElementById('slice-control-be').style.display = (val === 'PTAsTimeREExt' ? 'block' : 'none');
+            updateAll();
+        }
+
+        function updateAll() {
+            if (!fullData.length) return;
+            currentPair = document.getElementById('pair-select').value;
+            const fixedPT = parseFloat(document.getElementById('pt-select').value);
+            const fixedBE = parseInt(document.getElementById('be-select').value);
+
+            // Update Auto-BE Label and Recommendation
+            const rec = beEfficiencyMap[currentPair];
+            const autoLabel = document.getElementById('auto-be-label');
+            const autoContainer = document.getElementById('auto-be-container');
+
+            if (rec && autoLabel) {
+                autoLabel.innerHTML = `Use preferred BE exit = ${rec.bestBE} <span class="info-btn" onclick="toggleModal()" style="margin-left: 2px;">?</span>`;
+                autoContainer.style.borderColor = rec.trend === 'Early' ? 'rgba(0, 255, 136, 0.3)' : (rec.trend === 'Late' ? 'rgba(255, 62, 62, 0.3)' : 'rgba(255, 204, 0, 0.3)');
+                autoContainer.style.background = rec.trend === 'Early' ? 'rgba(0, 255, 136, 0.05)' : (rec.trend === 'Late' ? 'rgba(255, 62, 62, 0.05)' : 'rgba(255, 204, 0, 0.05)');
+                autoLabel.style.color = rec.trend === 'Early' ? 'var(--success-color)' : (rec.trend === 'Late' ? 'var(--danger-color)' : 'var(--warning-color)');
+                document.getElementById('eff-tag-profit').innerText = `Best Efficiency: $${rec.maxEff.toFixed(1)}/1%DD`;
+            }
+
+            const targetDD = parseFloat(document.getElementById('filter-dd').value);
+            const targetDuration = parseFloat(document.getElementById('filter-duration').value);
+            const targetReEntries = parseInt(document.getElementById('filter-reentries').value);
+            const radius = parseInt(document.getElementById('filter-radius').value);
+
+            let pairData = fullData.filter(d => d.Pair === currentPair);
+
+            // Calculate Efficiency and CostScore metrics for the filtered pair data
+            const dds = pairData.map(d => d.PercentDD);
+            const res = pairData.map(d => d.ReEntries);
+            const meanDD = dds.reduce((a, b) => a + b, 0) / dds.length;
+            const stdDD = Math.sqrt(dds.map(x => Math.pow(x - meanDD, 2)).reduce((a, b) => a + b, 0) / dds.length) || 1;
+            const meanRE = res.reduce((a, b) => a + b, 0) / res.length;
+            const stdRE = Math.sqrt(res.map(x => Math.pow(x - meanRE, 2)).reduce((a, b) => a + b, 0) / res.length) || 1;
+
+            pairData.forEach(d => {
+                d.Efficiency = d.Profit / (d.PercentDD || 1);
+                const zDD = (d.PercentDD - meanDD) / stdDD;
+                const zRE = (d.ReEntries - meanRE) / stdRE;
+                d.CostScore = zDD + zRE; // Lower is better
+            });
+
+            let filtered = pairData.filter(d => (currentYAxis === 'PTAsTimeREExt')
+                ? Number(d.CloseBreakEvenAfter) === fixedBE
+                : Number(d.PTAsTimeREExt) === fixedPT);
+
+            const xSorted = [...new Set(filtered.map(d => d.ReEntryExtension))].sort((a, b) => a - b);
+            const ySorted = [...new Set(filtered.map(d => Number(d[currentYAxis])))].sort((a, b) => a - b);
+
+            const gridMap = {};
+            filtered.forEach(d => {
+                const key = `${d.ReEntryExtension}_${Number(d[currentYAxis])}`;
+                gridMap[key] = d;
+            });
+
+            const candidates = filtered.filter(d => {
+                const isSafe = d.PercentDD < targetDD && d.Duration < targetDuration && d.ReEntries <= targetReEntries;
+                if (!isSafe) return false;
+                if (radius === 0) return true;
+                const xi = xSorted.indexOf(d.ReEntryExtension);
+                const yi = ySorted.indexOf(Number(d[currentYAxis]));
+                for (let dx = -radius; dx <= radius; dx++) {
+                    for (let dy = -radius; dy <= radius; dy++) {
+                        if (dx === 0 && dy === 0) continue;
+                        const nx = xSorted[xi + dx];
+                        const ny = ySorted[yi + dy];
+                        if (nx !== undefined && ny !== undefined) {
+                            const neighbor = gridMap[`${nx}_${ny}`];
+                            if (!neighbor || neighbor.PercentDD >= (targetDD + 10) || neighbor.ReEntries > targetReEntries) return false;
+                        }
+                    }
+                }
+                return true;
+            });
+
+            // Track Winners for each selected criteria
+            const activeCriteria = Array.from(document.querySelectorAll('.port-crit:checked')).map(cb => cb.value);
+            const winners = {};
+
+            if (candidates.length > 0) {
+                activeCriteria.forEach(crit => {
+                    let winner = null;
+                    if (crit === 'efficiency') winner = candidates.reduce((a, b) => a.Efficiency > b.Efficiency ? a : b);
+                    else if (crit === 'dd') winner = candidates.reduce((a, b) => a.PercentDD < b.PercentDD ? a : b);
+                    else if (crit === 'reentries') winner = candidates.reduce((a, b) => a.ReEntries < b.ReEntries ? a : b);
+                    else if (crit === 'composite') winner = candidates.reduce((a, b) => a.CostScore < b.CostScore ? a : b);
+                    else if (crit === 'duration') winner = candidates.reduce((a, b) => a.Duration < b.Duration ? a : b);
+                    else if (crit === 'ext_max') winner = candidates.reduce((a, b) => a.ReEntryExtension > b.ReEntryExtension ? a : b);
+                    else if (crit === 'ext_min') winner = candidates.reduce((a, b) => a.ReEntryExtension < b.ReEntryExtension ? a : b);
+                    if (winner) winners[crit] = winner;
+                });
+            }
+
+            renderOneChart('chart-profit', filtered, xSorted, ySorted, 'Profit', 'Viridis', candidates, winners);
+            renderOneChart('chart-dd', filtered, xSorted, ySorted, 'PercentDD', 'Viridis', candidates, winners);
+            renderOneChart('chart-duration', filtered, xSorted, ySorted, 'Duration', 'Viridis', candidates, winners);
+            renderOneChart('chart-reentries', filtered, xSorted, ySorted, 'ReEntries', 'Viridis', candidates, winners);
+
+            document.getElementById('stat-total').innerText = filtered.length;
+            document.getElementById('stat-safe').innerText = candidates.length;
+            const maxProf = candidates.length ? Math.max(...candidates.map(d => d.Profit)) : 0;
+            document.getElementById('stat-profit').innerText = `$${maxProf.toLocaleString()}`;
+
+            generatePortfolioReport();
+        }
+
+        function generatePortfolioReport() {
+            try {
+                const allCriteria = ['efficiency', 'dd', 'reentries', 'composite', 'duration', 'ext_max', 'ext_min'];
+                const mql5Container = document.getElementById('mql5-defines');
+
+                if (!fullData || fullData.length === 0) return;
+
+                const targetDD = parseFloat(document.getElementById('filter-dd').value);
+                const targetDuration = parseFloat(document.getElementById('filter-duration').value);
+                const targetReEntries = parseInt(document.getElementById('filter-reentries').value);
+                const radius = parseInt(document.getElementById('filter-radius').value);
+                const fixedPT = parseFloat(document.getElementById('pt-select').value);
+                const fixedBE = parseInt(document.getElementById('be-select').value);
+                const isAutoBE = document.getElementById('auto-be-toggle').checked;
+
+                const allPairs = [...new Set(fullData.map(d => d.Pair))].filter(p => !!p).sort();
+                const pairToWinners = {};
+                const pool = [];
+                const poolMap = new Map();
+
+                allPairs.forEach(pair => {
+                    try {
+                        const pairData = fullData.filter(d => d.Pair === pair);
+                        if (!pairData.length) return;
+
+                        const dds = pairData.map(d => d.PercentDD || 0);
+                        const res = pairData.map(d => d.ReEntries || 0);
+                        const meanDD = dds.reduce((a, b) => a + b, 0) / dds.length;
+                        const stdDD = Math.sqrt(dds.map(x => Math.pow(x - meanDD, 2)).reduce((a, b) => a + b, 0) / dds.length) || 1;
+                        const meanRE = res.reduce((a, b) => a + b, 0) / res.length;
+                        const stdRE = Math.sqrt(res.map(x => Math.pow(x - meanRE, 2)).reduce((a, b) => a + b, 0) / res.length) || 1;
+
+                        pairData.forEach(d => {
+                            d.Efficiency = (d.Profit || 0) / (d.PercentDD || 1);
+                            d.CostScore = (((d.PercentDD || 0) - meanDD) / stdDD) + (((d.ReEntries || 0) - meanRE) / stdRE);
+                        });
+
+                        const pairBE = isAutoBE && beEfficiencyMap[pair] ? beEfficiencyMap[pair].bestBE : fixedBE;
+                        let filtered = pairData.filter(d => (currentYAxis === 'PTAsTimeREExt')
+                            ? Number(d.CloseBreakEvenAfter) === Number(pairBE)
+                            : Number(d.PTAsTimeREExt) === Number(fixedPT));
+
+                        if (filtered.length === 0) return;
+
+                        const xSorted = [...new Set(filtered.map(d => Number(d.ReEntryExtension)))].sort((a, b) => a - b);
+                        const ySorted = [...new Set(filtered.map(d => Number(d[currentYAxis])))].sort((a, b) => a - b);
+                        const gridMap = {};
+                        filtered.forEach(d => gridMap[`${Number(d.ReEntryExtension)}_${Number(d[currentYAxis])}`] = d);
+
+                        const candidates = filtered.filter(d => {
+                            const isSafe = (d.PercentDD || 0) <= targetDD && (d.Duration || 0) <= targetDuration && (d.ReEntries || 0) <= targetReEntries;
+                            if (!isSafe) return false;
+                            if (radius === 0) return true;
+
+                            const xi = xSorted.indexOf(Number(d.ReEntryExtension));
+                            const yi = ySorted.indexOf(Number(d[currentYAxis]));
+                            for (let dx = -radius; dx <= radius; dx++) {
+                                for (let dy = -radius; dy <= radius; dy++) {
+                                    if (dx === 0 && dy === 0) continue;
+                                    const nx = xSorted[xi + dx];
+                                    const ny = ySorted[yi + dy];
+                                    if (nx !== undefined && ny !== undefined) {
+                                        const neighbor = gridMap[`${nx}_${ny}`];
+                                        if (!neighbor || (neighbor.PercentDD || 0) >= (targetDD + 10) || (neighbor.ReEntries || 0) > targetReEntries) return false;
+                                    }
+                                }
+                            }
+                            return true;
+                        });
+
+                        if (candidates.length > 0) {
+                            pairToWinners[pair] = {};
+                            allCriteria.forEach(crit => {
+                                let winner = null;
+                                try {
+                                    if (crit === 'efficiency') winner = candidates.reduce((a, b) => (a.Efficiency || 0) > (b.Efficiency || 0) ? a : b);
+                                    else if (crit === 'dd') winner = candidates.reduce((a, b) => (a.PercentDD || 0) < (b.PercentDD || 0) ? a : b);
+                                    else if (crit === 'reentries') winner = candidates.reduce((a, b) => (a.ReEntries || 0) < (b.ReEntries || 0) ? a : b);
+                                    else if (crit === 'composite') winner = candidates.reduce((a, b) => (a.CostScore || 100) < (b.CostScore || 100) ? a : b);
+                                    else if (crit === 'duration') winner = candidates.reduce((a, b) => (a.Duration || 1000) < (b.Duration || 1000) ? a : b);
+                                    else if (crit === 'ext_max') winner = candidates.reduce((a, b) => (a.ReEntryExtension || 0) > (b.ReEntryExtension || 0) ? a : b);
+                                    else if (crit === 'ext_min') winner = candidates.reduce((a, b) => (a.ReEntryExtension || 0) < (b.ReEntryExtension || 0) ? a : b);
+                                } catch (e) {
+                                    console.warn(`Criteria error for ${pair}:`, e);
+                                }
+
+                                if (winner) {
+                                    const key = `${winner.Pair}_${winner.ReEntryExtension}_${winner.CloseBreakEvenAfter}_${winner.PTAsTimeREExt}`;
+                                    if (!poolMap.has(key)) {
+                                        poolMap.set(key, pool.length);
+                                        pool.push(winner);
+                                    }
+                                    pairToWinners[pair][crit] = poolMap.get(key);
+                                }
+                            });
+                        }
+                    } catch (err) {
+                        console.error(`Error processing ${pair}:`, err);
+                    }
+                });
+
+                if (pool.length === 0) {
+                    mql5Container.innerText = '// ⚠️ No candidates found for any pair given the current filters.\n// Try relaxing the safety constraints.';
+                    return;
+                }
+
+                let mqlCode = `// MARTINGALE OPTIMIZER PRO - GENERATED PORTFOLIO\n`;
+                mqlCode += `// Criteria: BE=${isAutoBE ? 'Preferred' : fixedBE}, MaxDD=${targetDD}%, MaxDur=${targetDuration}d, MaxRE=${targetReEntries}, Radius=${radius}\n`;
+                mqlCode += `// Generated on: ${new Date().toLocaleString()}\n\n`;
+
+                mqlCode += 'void InitConfigs() {\n';
+                pool.forEach((d, i) => {
+                    mqlCode += `    Info[${i}].PairName = WithSuffix("${d.Pair}", Suffix); Info[${i}].PerctExtForReEntry = ${(d.ReEntryExtension || 0).toFixed(2)}; Info[${i}].BE = ${d.CloseBreakEvenAfter || 0}; Info[${i}].PTt = ${(d.PTAsTimeREExt || 0).toFixed(1)}; Info[${i}].ReEntries = ${d.ReEntries || 0}; Info[${i}].DD = ${(d.PercentDD || 0).toFixed(0)};\n`;
+                });
+                mqlCode += '}\n\n// Portfolio definitions\n';
+
+                const defineMap = {
+                    efficiency: 'PORTFOLIO_PROFIT', dd: 'PORTFOLIO_DD', reentries: 'PORTFOLIO_REENTRY',
+                    composite: 'PORTFOLIO_STABILITY', duration: 'PORTFOLIO_FAST',
+                    ext_max: 'PORTFOLIO_MAX_EXT', ext_min: 'PORTFOLIO_MIN_EXT'
+                };
+
+                allCriteria.forEach(crit => {
+                    const indices = allPairs
+                        .map(p => (pairToWinners[p] && pairToWinners[p][crit] !== undefined) ? pairToWinners[p][crit] : -1)
+                        .filter(idx => idx !== -1);
+
+                    const dName = defineMap[crit] || `PORTFOLIO_${crit.toUpperCase()}`;
+                    if (indices.length > 0) mqlCode += `#define ${dName} "${indices.join(',')}"\n`;
+                });
+
+                mqlCode += '\n#define PORTFOLIO_NAME "PRO"';
+                mql5Container.innerText = mqlCode;
+            } catch (err) {
+                console.error('Critical Report Error:', err);
+            }
+        }
+
+        function renderOneChart(id, data, xVals, yVals, metric, colors, candidates, winners) {
+            const zMatrix = yVals.map(y => xVals.map(x => {
+                const m = data.find(d => Number(d.ReEntryExtension) === Number(x) && Number(d[currentYAxis]) === Number(y));
+                return m ? m[metric] : null;
+            }));
+
+            const traces = [
+                { x: xVals, y: yVals, z: zMatrix, type: 'heatmap', colorscale: colors, showscale: false, hoverinfo: 'none' },
+                {
+                    x: data.map(d => d.ReEntryExtension), y: data.map(d => d[currentYAxis]),
+                    mode: 'markers', marker: { size: 12, opacity: 0 },
+                    text: data.map(d => `Val: ${d[metric]?.toFixed(2)}<br>DD: ${d.PercentDD}%<br>Dur: ${d.Duration}d<br>RE: ${d.ReEntries}`),
+                    hoverinfo: 'text', showlegend: false
+                }
+            ];
+
+            if (candidates.length > 0) {
+                traces.push({
+                    x: candidates.map(d => d.ReEntryExtension), y: candidates.map(d => d[currentYAxis]),
+                    mode: 'markers', marker: { size: 14, symbol: 'square-open', line: { color: 'white', width: 2 } },
+                    hoverinfo: 'skip'
+                });
+            }
+
+            // Highlight Portfolio Winners if visible in this slice
+            if (winners && Object.keys(winners).length > 0) {
+                const labelMap = {
+                    efficiency: 'EFF', dd: 'DD', reentries: 'RE',
+                    composite: 'COST', duration: 'DUR', ext_max: 'EXT', ext_min: 'MIN_EXT'
+                };
+                Object.entries(winners).forEach(([crit, w]) => {
+                    const isVisible = data.some(d => d.ReEntryExtension === w.ReEntryExtension && d[currentYAxis] === w[currentYAxis]);
+                    if (isVisible) {
+                        const label = labelMap[crit];
+                        traces.push({
+                            x: [w.ReEntryExtension], y: [w[currentYAxis]],
+                            mode: 'markers', marker: { size: 10, symbol: 'diamond', color: 'gold', line: { color: 'white', width: 1 } },
+                            name: `Best ${label}`,
+                            hoverinfo: 'skip'
+                        });
+                    }
+                });
+            }
+
+            const deathZone = data.filter(d => d.PercentDD >= 100);
+            if (deathZone.length > 0) {
+                traces.push({
+                    x: deathZone.map(d => d.ReEntryExtension), y: deathZone.map(d => d[currentYAxis]),
+                    mode: 'markers', marker: { size: 6, color: '#ff0000', symbol: 'circle', line: { color: 'white', width: 1 } },
+                    hoverinfo: 'skip', showlegend: false
+                });
+            }
+
+            const layout = {
+                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                margin: { t: 5, r: 10, b: 35, l: 35 },
+                font: { color: '#848d97', size: 10 },
+                xaxis: {
+                    gridcolor: 'rgba(255,255,255,0.05)',
+                    zeroline: false,
+                    tickmode: 'linear',
+                    dtick: 0.1,
+                    tickfont: { size: 10, color: '#848d97' }
+                },
+                yaxis: { gridcolor: 'rgba(255,255,255,0.05)', zeroline: false },
+                showlegend: false
+            };
+
+            Plotly.newPlot(id, traces, layout, config);
+        }
+    </script>
+</body>
+
+</html>
