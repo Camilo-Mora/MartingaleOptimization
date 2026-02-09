@@ -790,22 +790,42 @@
         let lastManualBE = 2; // Track user choice
         const config = { responsive: true, displayModeBar: false };
 
+        const GITHUB_URL = 'https://raw.githubusercontent.com/Camilo-Mora/MartingaleOptimization/main/ZMarti_ReEntry_PT_BE_Optimizations.csv';
+
         window.addEventListener('load', () => {
-            // Using relative path for full portability
-            fetch('ZMarti_ReEntry_PT_BE_Optimizations.csv')
-                .then(r => {
-                    if (r.ok) return r.text();
-                    throw new Error("Local file not found or browser blocked access");
-                })
-                .then(text => {
-                    if (text) parseCSV(text);
-                })
-                .catch(err => {
-                    console.error("Auto-load failed:", err);
-                    // Hide loading so the UI isn't stuck if fetch is blocked locally
-                    hideLoading();
+            const overlay = document.getElementById('loading-overlay');
+            const status = overlay.querySelector('p');
+
+            function tryFetch(url, name) {
+                console.log(`Trying ${name}...`);
+                return fetch(url).then(r => r.ok ? r.text() : Promise.reject());
+            }
+
+            // 1. Try Local (Works if on a server)
+            tryFetch('ZMarti_ReEntry_PT_BE_Optimizations.csv', 'Local')
+                .then(text => parseCSV(text))
+                .catch(() => {
+                    // 2. Try GitHub (Works even if opened as a local file)
+                    return tryFetch(GITHUB_URL, 'GitHub')
+                        .then(text => parseCSV(text))
+                        .catch(() => {
+                            console.warn("Auto-load blocked by browser security.");
+                            status.innerHTML = `
+                                <div style="text-align:center;">
+                                    <p style="margin-bottom:10px;">Browser blocked auto-load (Local Security).</p>
+                                    <button onclick="document.getElementById('manual-loader').click()" 
+                                            style="padding:8px 16px; background:var(--accent-color); color:#000; border:none; border-radius:4px; cursor:pointer; font-weight:700;">
+                                        Select CSV Manually
+                                    </button>
+                                    <input type="file" id="manual-loader" style="display:none;" onchange="handleFile(this)">
+                                </div>`;
+                        });
                 });
         });
+
+        function handleFile(input) {
+            if (input.files && input.files[0]) parseCSV(input.files[0]);
+        }
 
         function scrollToPortfolio() {
             const section = document.getElementById('portfolio-gen-section');
