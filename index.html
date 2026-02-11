@@ -594,12 +594,14 @@
                 <b>Preferred BE Exit</b> is calculated using a <b>Survival Guardrail</b>:
             </p>
             <ul>
-                <li><b>Safety First:</b> We compare the account survival rate of every BE setting against the safest
-                    baseline (BE=2).</li>
-                <li><b>5% Rule:</b> A deeper exit is only recommended if it keeps the survival rate within <b>5%</b> of
-                    the safest setting. If a pair trends too much (like JPY or Gold), a quick exit is forced.</li>
-                <li><b>Global Cap:</b> Recommendations are capped at <b>BE=4</b> to avoid over-exposure in extreme
-                    tail-end events.</li>
+                <li><b>Filter-Aware:</b> Recommendations are dynamic. If a BE setting (like BE=4) has zero results that
+                    pass your Max DD or Duration filters, it is disqualified.</li>
+                <li><b>Profit Pursuit:</b> The system starts at BE=2 and "upgrades" to BE=3 or 4 if they offer more
+                    <b>Net Profit</b>.
+                </li>
+                <li><b>70% Efficiency Rule:</b> To prevent reckless risk, an upgrade is only approved if the higher BE
+                    retains at least <b>70%</b> of the efficiency (Profit/DD ratio) of the previous setting.</li>
+                <li><b>Global Cap:</b> Recommendations are capped at <b>BE=4</b> for portfolio safety.</li>
             </ul>
         </div>
     </div>
@@ -653,13 +655,13 @@
         <div class="section-title">Candidate Filters</div>
 
         <div class="control-group">
-            <label>Max PercentDD <span id="val-dd">30%</span></label>
-            <input type="range" id="filter-dd" min="5" max="100" step="5" value="30">
+            <label>Max PercentDD <span id="val-dd">40%</span></label>
+            <input type="range" id="filter-dd" min="5" max="100" step="5" value="40">
         </div>
 
         <div class="control-group">
-            <label>Max Duration <span id="val-duration">15d</span></label>
-            <input type="range" id="filter-duration" min="5" max="120" step="5" value="15">
+            <label>Max Duration <span id="val-duration">35d</span></label>
+            <input type="range" id="filter-duration" min="5" max="120" step="5" value="35">
         </div>
 
         <div class="control-group">
@@ -668,8 +670,8 @@
         </div>
 
         <div class="control-group">
-            <label>Neighbor Radius <span id="val-radius">1</span></label>
-            <input type="range" id="filter-radius" min="0" max="2" step="1" value="1">
+            <label>Neighbor Radius <span id="val-radius">2</span></label>
+            <input type="range" id="filter-radius" min="0" max="2" step="1" value="2">
             <p style="font-size: 0.65rem; color: var(--text-muted); margin-top: 4px;">Surrounding stability (+10%
                 buffer)</p>
         </div>
@@ -786,7 +788,6 @@
         let fullData = [];
         let currentPair = '';
         let currentYAxis = 'PTAsTimeREExt';
-        let beEfficiencyMap = {}; // Will hold pre-calculated recs
         let lastManualBE = 2; // Track user choice
         const config = { responsive: true, displayModeBar: false };
 
@@ -897,76 +898,112 @@
                 header: true, dynamicTyping: true, skipEmptyLines: true,
                 complete: function (r) {
                     fullData = r.data.map(row => ({ ...row, ...decodeResult(row.Result) }));
-                    calculateGlobalEfficiency();
                     initSelectors();
                     hideLoading();
                 }
             });
         }
 
-        // Pre-calculate BE recommendations based on Survival First, then Profit/DD Efficiency
-        function calculateGlobalEfficiency() {
-            const pairs = [...new Set(fullData.map(d => d.Pair))];
-            pairs.forEach(p => {
-                const pairData = fullData.filter(d => d.Pair === p);
-                if (!pairData.length) return;
+        // Find the best BE setting using "Profit Pursuit with 70% Efficiency Retention"
+        // We look for more profit, but only if efficiency doesn't crater (drops by >30%)
+        function findBestBE(pairName) {
+            const targetDD = parseFloat(document.getElementById('filter-dd').value);
+            const targetDuration = parseFloat(document.getElementById('filter-duration').value);
+            const targetReEntries = parseInt(document.getElementById('filter-reentries').value);
+            const radius = parseInt(document.getElementById('filter-radius').value);
 
-                const beGroups = {};
-                pairData.forEach(d => {
-                    const be = d.CloseBreakEvenAfter;
-                    if (!beGroups[be]) beGroups[be] = { p: 0, dd: 0, total: 0, safe: 0 };
-                    beGroups[be].total++;
-                    if (d.PercentDD < 100) {
-                        beGroups[be].p += d.Profit;
-                        beGroups[be].dd += d.PercentDD;
-                        beGroups[be].safe++;
+            const EFF_FLOOR = 1.0; // Absolute minimum Profit/DD to even look at a config
+            const EFF_RETENTION = 0.70; // Must keep 70% of efficiency to justify a more aggressive BE
+
+            let pairData = fullData.filter(d => d.Pair === pairName);
+            const beWinners = {};
+
+            [2, 3, 4].forEach(be => {
+                const slice = pairData.filter(d => d.CloseBreakEvenAfter === be);
+                if (slice.length === 0) return;
+
+                const xSorted = [...new Set(slice.map(d => d.ReEntryExtension))].sort((a, b) => a - b);
+                const ySorted = [...new Set(slice.map(d => d.PTAsTimeREExt))].sort((a, b) => a - b);
+                const grid = {};
+                slice.forEach(d => grid[`${d.ReEntryExtension}_${d.PTAsTimeREExt}`] = d);
+
+                let bestForThisBE = null;
+                slice.forEach(d => {
+                    const eff = d.Profit / (d.PercentDD || 1);
+                    if (eff < EFF_FLOOR) return; // Garbage filter
+
+                    const isSafe = d.PercentDD < targetDD && d.Duration < targetDuration && d.ReEntries <= targetReEntries;
+                    if (!isSafe) return;
+
+                    let radiusSafe = true;
+                    if (radius > 0) {
+                        const xi = xSorted.indexOf(d.ReEntryExtension);
+                        const yi = ySorted.indexOf(d.PTAsTimeREExt);
+                        for (let dx = -radius; dx <= radius; dx++) {
+                            for (let dy = -radius; dy <= radius; dy++) {
+                                if (dx === 0 && dy === 0) continue;
+                                const nx = xSorted[xi + dx];
+                                const ny = ySorted[yi + dy];
+                                if (nx !== undefined && ny !== undefined) {
+                                    const neighbor = grid[`${nx}_${ny}`];
+                                    if (!neighbor || neighbor.PercentDD >= (targetDD + 10) || neighbor.ReEntries > targetReEntries) {
+                                        radiusSafe = false;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (!radiusSafe) break;
+                        }
                     }
-                });
 
-                // Baseline survival (usually BE=2)
-                const baselineSurvival = beGroups[2] ? (beGroups[2].safe / beGroups[2].total) : 1;
-
-                let bestBE = 2;
-                let maxEff = -1;
-                let trend = 'Neutral';
-
-                Object.keys(beGroups).forEach(beStr => {
-                    const be = parseInt(beStr);
-                    const g = beGroups[be];
-                    const survival = g.safe / g.total;
-
-                    // SAFETY RULE: Survival must be within 5% of the baseline to be considered
-                    // GLOBAL CAP: Never recommend higher than BE=4
-                    if (survival >= (baselineSurvival - 0.05) && be <= 4) {
-                        const eff = g.safe > 0 ? (g.p / g.safe) / (g.dd / g.safe) : 0;
-                        if (eff > maxEff) {
-                            maxEff = eff;
-                            bestBE = be;
+                    if (radiusSafe) {
+                        // For a fixed BE, the "Representative" is the Max Profit candidate
+                        if (!bestForThisBE || d.Profit > bestForThisBE.Profit) {
+                            bestForThisBE = d;
                         }
                     }
                 });
-
-                // Determine trend for UI coloring based on the winner
-                const eff2 = beGroups[2] && beGroups[2].safe > 0 ? (beGroups[2].p / beGroups[2].safe) / (beGroups[2].dd / beGroups[2].safe) : 0;
-                if (bestBE > 3) trend = 'Late';
-                else if (bestBE <= 2) trend = 'Early';
-                else trend = 'Neutral';
-
-                beEfficiencyMap[p] = { bestBE, trend, maxEff };
+                if (bestForThisBE) {
+                    beWinners[be] = {
+                        profit: bestForThisBE.Profit,
+                        eff: bestForThisBE.Profit / (bestForThisBE.PercentDD || 1),
+                        data: bestForThisBE
+                    };
+                }
             });
+
+            // Logical Selection
+            let leaderBE = 0;
+            if (beWinners[2]) leaderBE = 2;
+            else if (beWinners[3]) leaderBE = 3;
+            else if (beWinners[4]) leaderBE = 4;
+
+            if (leaderBE === 0) return { bestBE: 2, maxEff: -1 };
+
+            // Step up to 3?
+            if (leaderBE === 2 && beWinners[3]) {
+                if (beWinners[3].profit > beWinners[2].profit &&
+                    beWinners[3].eff >= (beWinners[2].eff * EFF_RETENTION)) {
+                    leaderBE = 3;
+                }
+            }
+
+            // Step up to 4?
+            if (leaderBE <= 3 && beWinners[4]) {
+                const currentLeader = beWinners[leaderBE];
+                if (beWinners[4].profit > currentLeader.profit &&
+                    beWinners[4].eff >= (currentLeader.eff * EFF_RETENTION)) {
+                    leaderBE = 4;
+                }
+            }
+
+            return {
+                bestBE: leaderBE,
+                maxEff: beWinners[leaderBE].eff
+            };
         }
 
         function toggleAutoBE() {
-            const isAuto = document.getElementById('auto-be-toggle').checked;
-            const beSelect = document.getElementById('be-select');
-
-            if (isAuto && beEfficiencyMap[currentPair]) {
-                const rec = beEfficiencyMap[currentPair];
-                beSelect.value = rec.bestBE;
-                beSelect.disabled = true;
-            } else {
-                beSelect.disabled = false;
-            }
             updateAll();
         }
 
@@ -1027,21 +1064,46 @@
         function updateAll() {
             if (!fullData.length) return;
             currentPair = document.getElementById('pair-select').value;
-            const fixedPT = parseFloat(document.getElementById('pt-select').value);
-            const fixedBE = parseInt(document.getElementById('be-select').value);
+            const isAutoBE = document.getElementById('auto-be-toggle').checked;
+            const beSelect = document.getElementById('be-select');
 
-            // Update Auto-BE Label and Recommendation
-            const rec = beEfficiencyMap[currentPair];
+            // 1. Calculate dynamic best BE
+            const rec = findBestBE(currentPair);
             const autoLabel = document.getElementById('auto-be-label');
             const autoContainer = document.getElementById('auto-be-container');
 
-            if (rec && autoLabel) {
-                autoLabel.innerHTML = `Use preferred BE exit = ${rec.bestBE} <span class="info-btn" onclick="toggleModal()" style="margin-left: 2px;">?</span>`;
-                autoContainer.style.borderColor = rec.trend === 'Early' ? 'rgba(0, 255, 136, 0.3)' : (rec.trend === 'Late' ? 'rgba(255, 62, 62, 0.3)' : 'rgba(255, 204, 0, 0.3)');
-                autoContainer.style.background = rec.trend === 'Early' ? 'rgba(0, 255, 136, 0.05)' : (rec.trend === 'Late' ? 'rgba(255, 62, 62, 0.05)' : 'rgba(255, 204, 0, 0.05)');
-                autoLabel.style.color = rec.trend === 'Early' ? 'var(--success-color)' : (rec.trend === 'Late' ? 'var(--danger-color)' : 'var(--warning-color)');
-                document.getElementById('eff-tag-profit').innerText = `Best Efficiency: $${rec.maxEff.toFixed(1)}/1%DD`;
+            if (autoLabel && autoContainer) {
+                if (rec.maxEff > -1) {
+                    // Make the badge highly visible with black text
+                    autoLabel.innerHTML = `Use preferred BE exit = ${rec.bestBE} <span class="info-btn" onclick="toggleModal()" style="margin-left: 2px; background:#000; color:#fff; width:16px; height:16px; font-size:11px;">?</span>`;
+
+                    const bgColor = rec.bestBE <= 2 ? '#00ff88' : (rec.bestBE >= 4 ? '#ff3e3e' : '#ffcc00');
+                    autoContainer.style.background = bgColor;
+                    autoContainer.style.borderColor = bgColor;
+                    autoLabel.style.color = '#000000';
+                    autoLabel.style.fontWeight = '800';
+
+                    document.getElementById('eff-tag-profit').innerText = `Best Efficiency: $${rec.maxEff.toFixed(1)}/1%DD`;
+
+                    if (isAutoBE) {
+                        beSelect.value = rec.bestBE;
+                        beSelect.disabled = true;
+                    } else {
+                        beSelect.disabled = false;
+                    }
+                } else {
+                    autoLabel.innerHTML = `No available combinations <span class="info-btn" onclick="toggleModal()" style="margin-left: 2px;">?</span>`;
+                    autoContainer.style.background = 'rgba(255,255,255,0.05)';
+                    autoContainer.style.borderColor = 'rgba(255,255,255,0.1)';
+                    autoLabel.style.color = 'var(--text-muted)';
+                    autoLabel.style.fontWeight = '700';
+                    document.getElementById('eff-tag-profit').innerText = '';
+                    beSelect.disabled = false;
+                }
             }
+
+            const fixedPT = parseFloat(document.getElementById('pt-select').value);
+            const fixedBE = parseInt(beSelect.value);
 
             const targetDD = parseFloat(document.getElementById('filter-dd').value);
             const targetDuration = parseFloat(document.getElementById('filter-duration').value);
@@ -1166,7 +1228,8 @@
                             d.CostScore = (((d.PercentDD || 0) - meanDD) / stdDD) + (((d.ReEntries || 0) - meanRE) / stdRE);
                         });
 
-                        const pairBE = isAutoBE && beEfficiencyMap[pair] ? beEfficiencyMap[pair].bestBE : fixedBE;
+                        const rec = findBestBE(pair);
+                        const pairBE = isAutoBE && rec.maxEff > -1 ? rec.bestBE : fixedBE;
                         let filtered = pairData.filter(d => (currentYAxis === 'PTAsTimeREExt')
                             ? Number(d.CloseBreakEvenAfter) === Number(pairBE)
                             : Number(d.PTAsTimeREExt) === Number(fixedPT));
