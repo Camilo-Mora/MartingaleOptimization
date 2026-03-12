@@ -606,6 +606,39 @@
         </div>
     </div>
 
+    <!-- Buffer Rules Modal -->
+    <div id="bufferModal" class="modal">
+        <div class="modal-content" style="width: 520px;">
+            <span class="close-btn" onclick="closeBufferModal()">&#x2715;</span>
+            <h2>⚙️ Portfolio with Buffer Rules</h2>
+            <p style="background:rgba(255,204,0,0.08); border:1px solid rgba(255,204,0,0.3); border-radius:8px; padding:12px; color:var(--warning-color); font-size:0.85rem; line-height:1.6;">
+                ⚠️ <strong>Important:</strong> Be sure you provide the <code>BuffersRules.csv</code> file generated using <strong>the same combinations currently selected</strong> in this app. Buffers (B1–B14) and DesiredDD are assigned to each combination based on the highest Recovery Factor found in that CSV, using the criteria you applied here.
+            </p>
+            <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.5; margin-top:10px;">
+                The tool will verify that the number of unique <code>ComboID</code> entries in your CSV matches the number of combinations in the current portfolio. If they do not match, generation will be blocked.
+            </p>
+            <div style="margin-top:14px; background:rgba(0,0,0,0.25); border:1px solid var(--border-color); border-radius:8px; padding:12px;">
+                <label style="font-size:0.72rem; font-weight:800; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.5px; display:block; margin-bottom:8px;">Buffer Selection Criterion (rows filtered where Equity DD% ≤ desire_DD)</label>
+                <select id="buffer-criterion" style="width:100%; background:rgba(0,0,0,0.4); border:1px solid var(--border-color); border-radius:6px; color:var(--text-color); padding:8px 10px; font-size:0.85rem; outline:none;">
+                    <option value="profit">Largest Profit</option>
+                    <option value="profitfactor">Largest Profit Factor</option>
+                </select>
+            </div>
+            <div style="margin-top:14px; display:flex; gap:10px;">
+                <button onclick="document.getElementById('buffer-file-input').click()"
+                    style="flex:1; background:var(--accent-color); color:#000; border:none; border-radius:6px; padding:10px 20px; font-size:0.8rem; font-weight:800; cursor:pointer;">
+                    📂 Select BuffersRules CSV File
+                </button>
+                <button onclick="closeBufferModal()"
+                    style="background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid var(--border-color); border-radius:6px; padding:10px 16px; font-size:0.8rem; cursor:pointer;">
+                    Cancel
+                </button>
+            </div>
+            <input type="file" id="buffer-file-input" style="display:none;" accept=".csv" onchange="handleBufferFile(this)">
+            <div id="buffer-modal-status" style="margin-top:12px; font-size:0.78rem; color:var(--text-muted); display:none;"></div>
+        </div>
+    </div>
+
     <aside>
         <div class="logo-container">
             <h1><span>📊</span> Optimizer Pro</h1>
@@ -756,9 +789,13 @@
             </div>
         </div>
 
-        <div class="portfolio-toggle-wrapper">
+        <div class="portfolio-toggle-wrapper" style="gap:12px;">
             <button class="toggle-results-btn" onclick="togglePortfolioVisibility()" id="toggle-btn-ui">
                 <span id="toggle-icon">👁️</span> <span id="toggle-text">Preview Portfolio Code</span>
+            </button>
+            <button class="toggle-results-btn" onclick="openBufferModal()" id="toggle-btn-buffer"
+                style="background:rgba(255,204,0,0.1); border-color:var(--warning-color); color:var(--warning-color);">
+                <span>⚙️</span> <span>Portfolio with Buffer Rules</span>
             </button>
         </div>
 
@@ -781,6 +818,26 @@
                 </div>
             </div>
         </div>
+
+        <!-- Buffer Rules Output Panel -->
+        <div class="bottom-panel hidden" id="buffer-gen-section">
+            <div class="portfolio-output-section">
+                <div class="portfolio-header"
+                    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                    <h2>📦 MartiInfo Struct — With Buffer Rules (B1–B14 + DesiredDD)</h2>
+                    <div style="display: flex; gap: 8px;">
+                        <button onclick="copyToClipboard('mql5-buffer-code')"
+                            style="background:var(--warning-color); color:#000; border:none; border-radius:4px; padding:6px 16px; font-size:0.7rem; cursor:pointer; font-weight:800;">COPY CODE</button>
+                        <button onclick="document.getElementById('buffer-gen-section').classList.add('hidden')"
+                            style="background:rgba(255,255,255,0.05); color:var(--text-muted); border:1px solid var(--border-color); border-radius:4px; padding:6px 12px; font-size:0.7rem; cursor:pointer;">CLOSE</button>
+                    </div>
+                </div>
+                <div id="buffer-validation-msg" style="display:none; padding:10px 14px; border-radius:6px; font-size:0.8rem; margin-top:8px;"></div>
+                <div class="mql5-code-block" id="mql5-buffer-code" style="color:#ffcc00;">
+                    <!-- Buffer Rules code injected here -->
+                </div>
+            </div>
+        </div>
     </main>
 
 
@@ -789,6 +846,7 @@
         let currentPair = '';
         let currentYAxis = 'PTAsTimeREExt';
         let lastManualBE = 2; // Track user choice
+        let lastGeneratedPool = []; // Keep the most recent pool for buffer generation
         const config = { responsive: true, displayModeBar: false };
 
         const GITHUB_URL = 'https://raw.githubusercontent.com/Camilo-Mora/MartingaleOptimization/main/ZMarti_ReEntry_PT_BE_Optimizations.csv';
@@ -1295,8 +1353,12 @@
 
                 if (pool.length === 0) {
                     mql5Container.innerText = '// ⚠️ No candidates found for any pair given the current filters.\n// Try relaxing the safety constraints.';
+                    lastGeneratedPool = [];
                     return;
                 }
+
+                // Store current pool for buffer generation
+                lastGeneratedPool = pool.slice();
 
                 let mqlCode = `// MARTINGALE OPTIMIZER PRO - GENERATED PORTFOLIO\n`;
                 mqlCode += `// Criteria: BE=${isAutoBE ? 'Preferred' : fixedBE}, MaxDD=${targetDD}%, MaxDur=${targetDuration}d, MaxRE=${targetReEntries}, Radius=${radius}\n`;
@@ -1400,6 +1462,154 @@
 
             Plotly.newPlot(id, traces, layout, config);
         }
+        // ─── Buffer Rules Feature ─────────────────────────────────────────────
+
+        function openBufferModal() {
+            if (!lastGeneratedPool || lastGeneratedPool.length === 0) {
+                alert('⚠️ No portfolio has been generated yet.\nPlease load the optimization CSV and let the app compute candidates first.');
+                return;
+            }
+            // Reset modal state
+            document.getElementById('buffer-modal-status').style.display = 'none';
+            document.getElementById('buffer-file-input').value = '';
+            document.getElementById('bufferModal').style.display = 'block';
+        }
+
+        function closeBufferModal() {
+            document.getElementById('bufferModal').style.display = 'none';
+        }
+
+        function handleBufferFile(input) {
+            if (!input.files || !input.files[0]) return;
+            const statusEl = document.getElementById('buffer-modal-status');
+            statusEl.style.display = 'block';
+            statusEl.style.color = 'var(--text-muted)';
+            statusEl.textContent = '⏳ Parsing CSV...';
+
+            Papa.parse(input.files[0], {
+                header: true,
+                dynamicTyping: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    closeBufferModal();
+                    processBufferCSV(results.data);
+                },
+                error: function(err) {
+                    statusEl.style.color = 'var(--danger-color)';
+                    statusEl.textContent = '❌ Error parsing CSV: ' + err.message;
+                }
+            });
+        }
+
+        function processBufferCSV(bufferData) {
+            const pool = lastGeneratedPool;
+            const criterion = document.getElementById('buffer-criterion').value; // 'profit' or 'profitfactor'
+            const criterionLabel = criterion === 'profitfactor' ? 'Largest Profit Factor' : 'Largest Profit';
+            const validationEl = document.getElementById('buffer-validation-msg');
+            const codeEl = document.getElementById('mql5-buffer-code');
+            const section = document.getElementById('buffer-gen-section');
+
+            // ── Validation: unique ComboIDs must match pool size ──────────────
+            const uniqueComboIDs = new Set(bufferData.map(r => r.ComboID));
+            const csvCount = uniqueComboIDs.size;
+            const poolCount = pool.length;
+
+            section.classList.remove('hidden');
+            setTimeout(() => section.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+
+            if (csvCount !== poolCount) {
+                validationEl.style.display = 'block';
+                validationEl.style.background = 'rgba(255,62,62,0.1)';
+                validationEl.style.border = '1px solid rgba(255,62,62,0.3)';
+                validationEl.style.color = 'var(--danger-color)';
+                validationEl.innerHTML =
+                    `❌ <strong>ComboID Count Mismatch</strong><br>` +
+                    `The Buffer CSV has <strong>${csvCount}</strong> unique ComboIDs, ` +
+                    `but the current portfolio has <strong>${poolCount}</strong> combinations.<br>` +
+                    `Please re-run the EA using exactly the combinations currently selected, then try again.`;
+                codeEl.textContent = '// Code generation blocked due to ComboID mismatch above.';
+                return;
+            }
+
+            // Validation passed
+            validationEl.style.display = 'block';
+            validationEl.style.background = 'rgba(0,255,136,0.08)';
+            validationEl.style.border = '1px solid rgba(0,255,136,0.25)';
+            validationEl.style.color = 'var(--success-color)';
+            validationEl.innerHTML =
+                `✅ <strong>Validation Passed</strong> — ${csvCount} ComboIDs matched ${poolCount} portfolio combinations.`;
+
+            // ── Build lookup: comboIndex → { ruleID → best{buffer, desireDD} } ─
+            // Also find the overall best-RF row per combo for DesiredDD
+            const bestBuffers = {}; // { comboIdx: { 1: bufferVal, 2: bufferVal, ... } }
+            const bestDesiredDD = {};  // { comboIdx: desireDDValue }
+            const bestRFPerCombo = {}; // { comboIdx: maxRF }
+
+            bufferData.forEach(row => {
+                const comboIdx = row.ComboID;   // 0-based index matching Info[i]
+                const ruleID   = row.Opt_RuleID;
+                const profit   = parseFloat(row['Profit']) || -Infinity;
+                const pf       = parseFloat(row['Profit Factor']) || -Infinity;
+                const actualDD = parseFloat(row['Equity DD %']) || Infinity;
+                const buf      = row.Opt_BufferValue;
+                const dDD      = row.desire_DD;
+
+                // Only consider rows where actual drawdown is within desired DD
+                if (actualDD > dDD) return;
+
+                // Score by chosen criterion
+                const score = (criterion === 'profitfactor') ? pf : profit;
+
+                // Per-rule best buffer = highest score below desire_DD
+                if (!bestBuffers[comboIdx]) bestBuffers[comboIdx] = {};
+                if (bestBuffers[comboIdx][ruleID] === undefined ||
+                    score > (bestBuffers[comboIdx][ruleID]._score || -Infinity)) {
+                    bestBuffers[comboIdx][ruleID] = { value: buf, _score: score };
+                }
+
+                // Overall best score per combo (for DesiredDD)
+                if (bestRFPerCombo[comboIdx] === undefined || score > bestRFPerCombo[comboIdx]) {
+                    bestRFPerCombo[comboIdx] = score;
+                    bestDesiredDD[comboIdx]  = dDD;
+                }
+            });
+
+            // ── Generate MQL5 InitConfigs block ─────────────────────────────
+            let code = `// MARTINGALE OPTIMIZER PRO — PORTFOLIO WITH BUFFER RULES\n`;
+            code += `// B1–B14 = best buffer per rule (${criterionLabel} where Equity DD% ≤ desire_DD)\n`;
+            code += `// DesiredDD = desire_DD level from the best-${criterionLabel} row per combo\n`;
+            code += `// Generated on: ${new Date().toLocaleString()}\n`;
+            code += `// Portfolio size: ${poolCount} combinations\n\n`;
+
+            code += 'void InitConfigs() {\n';
+            pool.forEach((d, i) => {
+                const bbs = bestBuffers[i] || {};
+                const b = (r) => (bbs[r] !== undefined ? bbs[r].value : 0);
+                const desiredDD = bestDesiredDD[i] !== undefined ? bestDesiredDD[i] : 0;
+
+                // Base fields (from optimization data)
+                let line = `    Info[${i}].PairName = WithSuffix("${d.Pair}", Suffix);`;
+                line += ` Info[${i}].PerctExtForReEntry = ${(d.ReEntryExtension || 0).toFixed(2)};`;
+                line += ` Info[${i}].PTt = ${(d.PTAsTimeREExt || 0).toFixed(1)};`;
+                line += ` Info[${i}].ReEntries = ${d.ReEntries || 0};`;
+                line += ` Info[${i}].BE = ${d.CloseBreakEvenAfter || 0};`;
+                line += ` Info[${i}].DD = ${(d.PercentDD || 0).toFixed(0)};`;
+
+                // Buffer fields B1–B14
+                for (let r = 1; r <= 14; r++) {
+                    line += ` Info[${i}].B${r} = ${b(r)};`;
+                }
+
+                // DesiredDD
+                line += ` Info[${i}].DesiredDD = ${desiredDD};`;
+
+                code += line + '\n';
+            });
+            code += '}\n';
+
+            codeEl.textContent = code;
+        }
+
     </script>
 </body>
 
